@@ -218,18 +218,14 @@ function activateArea(areaId) {
   document.getElementById('headerRing').style.display  = 'none';
   document.getElementById('quickAddWrap').style.display = 'none';
 
-  // Collaborator bar for shared areas
+  // Collaborator bar — always show Share button
   const hr = document.getElementById('headerRight');
-  if (area.isShared && area.collaborators.length) {
-    document.getElementById('headerAvatars').innerHTML =
-      area.collaborators.map(cid => {
-        const c = COLLABORATORS[cid];
-        return `<div class="av" style="background:${c.color}" title="${c.name}">${c.initials}</div>`;
-      }).join('') + `<div class="add-av" title="Invite">+</div>`;
-    hr.style.display = 'flex';
-  } else {
-    hr.style.display = 'none';
-  }
+  document.getElementById('headerAvatars').innerHTML =
+    (area.collaborators || []).map(cid => {
+      const c = COLLABORATORS[cid];
+      return c ? `<div class="av" style="background:${c.color}" title="${c.name}">${c.initials}</div>` : '';
+    }).join('');
+  hr.style.display = 'flex';
 
   renderTaskList();
   renderSidebar();
@@ -254,18 +250,15 @@ function activateProject(projectId) {
   document.getElementById('headerRing').style.display  = 'block';
   updateHeaderRing(projectId);
 
+  // Collaborator bar — always show Share button
   const hr      = document.getElementById('headerRight');
-  const collabs = proj.collaborators.length ? proj.collaborators : area.isShared ? area.collaborators : [];
-  if (collabs.length) {
-    document.getElementById('headerAvatars').innerHTML =
-      collabs.map(cid => {
-        const c = COLLABORATORS[cid];
-        return `<div class="av" style="background:${c.color}" title="${c.name}">${c.initials}</div>`;
-      }).join('') + `<div class="add-av" title="Invite">+</div>`;
-    hr.style.display = 'flex';
-  } else {
-    hr.style.display = 'none';
-  }
+  const collabs = (proj.collaborators || []).length ? proj.collaborators : area.isShared ? (area.collaborators || []) : [];
+  document.getElementById('headerAvatars').innerHTML =
+    collabs.map(cid => {
+      const c = COLLABORATORS[cid];
+      return c ? `<div class="av" style="background:${c.color}" title="${c.name}">${c.initials}</div>` : '';
+    }).join('');
+  hr.style.display = 'flex';
 
   document.getElementById('quickAddWrap').style.display = 'block';
   renderTaskList();
