@@ -25,13 +25,13 @@ const COLLABORATORS = {
 };
 
 // ─── Areas ─────────────────────────────────────────────────
-const AREAS = [
+let AREAS = [
   { id: 'work',     name: 'Work',     isShared: true,  collaborators: ['AL','M','R'] },
   { id: 'personal', name: 'Personal', isShared: false, collaborators: [] },
 ];
 
 // ─── Projects ──────────────────────────────────────────────
-const PROJECTS = [
+let PROJECTS = [
   { id: 'brand', areaId: 'work',     name: 'Brand Refresh', collaborators: ['AL','M'] },
   { id: 'q3',    areaId: 'work',     name: 'Q3 Roadmap',    collaborators: ['R'] },
   { id: 'ios',   areaId: 'work',     name: 'iOS Redesign',  collaborators: ['AL','M','J'] },

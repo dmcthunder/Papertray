@@ -53,6 +53,7 @@ function renderSidebar() {
     hdr.style.cursor = 'pointer';
     hdr.addEventListener('click', () => activateArea(area.id));
     hdr.addEventListener('dblclick', e => { e.stopPropagation(); activateArea(area.id); startInlineEdit(area.id, 'area'); });
+    hdr.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showAreaMenu(area.id, e.clientX, e.clientY); });
 
     // Drag-over → move project to this area
     hdr.addEventListener('dragover', e => { e.preventDefault(); hdr.style.background = 'var(--blue-bg)'; });
@@ -108,6 +109,7 @@ function renderSidebar() {
 
       row.addEventListener('click', e => { e.stopPropagation(); activateProject(proj.id); });
       row.addEventListener('dblclick', e => { e.stopPropagation(); activateProject(proj.id); startInlineEdit(proj.id, 'project'); });
+      row.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showProjectMenu(proj.id, e.clientX, e.clientY); });
 
       // ── Drag source ──
       row.addEventListener('dragstart', e => {
@@ -724,6 +726,129 @@ function hideContextMenu() {
   document.getElementById('ctxMenu').style.display = 'none';
   ctxTaskId = null;
 }
+
+// ═══════════════════════════════════════════════════════════
+// SIDEBAR CONTEXT MENUS  (right-click on area / project)
+// ═══════════════════════════════════════════════════════════
+
+let _sbCtxId   = null;
+let _sbCtxType = null; // 'area' | 'project'
+
+function _positionMenu(menu, x, y) {
+  menu.style.display = 'block';
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  menu.style.left = (x + mw > window.innerWidth  ? x - mw : x) + 'px';
+  menu.style.top  = (y + mh > window.innerHeight ? y - mh : y) + 'px';
+}
+
+function showAreaMenu(areaId, x, y) {
+  hideSbMenus();
+  _sbCtxId   = areaId;
+  _sbCtxType = 'area';
+  _positionMenu(document.getElementById('sbAreaMenu'), x, y);
+}
+
+function showProjectMenu(projId, x, y) {
+  hideSbMenus();
+  _sbCtxId   = projId;
+  _sbCtxType = 'project';
+  // Populate "Move to Area" submenu
+  document.getElementById('sb-sub-areas').innerHTML = AREAS.map(a => `
+    <div class="ctx-item" data-sb-action="move-to-area" data-area-id="${a.id}">
+      <svg class="ctx-icon" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="5" stroke="var(--muted)" stroke-width="1.3" stroke-dasharray="3 2"/></svg>
+      ${a.name}${getProject(projId)?.areaId === a.id ? ' ✓' : ''}
+    </div>`).join('');
+  _positionMenu(document.getElementById('sbProjMenu'), x, y);
+}
+
+function hideSbMenus() {
+  document.getElementById('sbAreaMenu').style.display = 'none';
+  document.getElementById('sbProjMenu').style.display = 'none';
+  _sbCtxId   = null;
+  _sbCtxType = null;
+}
+
+// Unified click handler for both sidebar menus
+['sbAreaMenu','sbProjMenu'].forEach(menuId => {
+  document.getElementById(menuId).addEventListener('click', e => {
+    const item   = e.target.closest('[data-sb-action]');
+    if (!item || !_sbCtxId) return;
+    const action = item.dataset.sbAction;
+    const id     = _sbCtxId;
+    const type   = _sbCtxType;
+    hideSbMenus();
+
+    if (action === 'rename') {
+      if (type === 'area') { activateArea(id); startInlineEdit(id, 'area'); }
+      else { activateProject(id); startInlineEdit(id, 'project'); }
+
+    } else if (action === 'share') {
+      if (type === 'area') activateArea(id);
+      else activateProject(id);
+      setTimeout(handleShare, 50);
+
+    } else if (action === 'delete-area') {
+      if (!confirm(`Delete area "${getArea(id)?.name}"? All its projects and tasks will also be deleted.`)) return;
+      // Remove tasks & projects belonging to this area
+      const projIds = PROJECTS.filter(p => p.areaId === id).map(p => p.id);
+      projIds.forEach(pid => {
+        TASKS.filter(t => t.projectId === pid).forEach(t => DB.deleteTask(t.id));
+        TASKS = TASKS.filter(t => t.projectId !== pid);
+        DB.deleteProject(pid);
+      });
+      PROJECTS = PROJECTS.filter(p => p.areaId !== id);
+      DB.deleteArea(id);
+      AREAS.splice(AREAS.findIndex(a => a.id === id), 1);
+      activateView('today');
+      renderSidebar();
+
+    } else if (action === 'delete-project') {
+      if (!confirm(`Delete project "${getProject(id)?.name}"? All its tasks will also be deleted.`)) return;
+      TASKS.filter(t => t.projectId === id).forEach(t => DB.deleteTask(t.id));
+      TASKS = TASKS.filter(t => t.projectId !== id);
+      DB.deleteProject(id);
+      PROJECTS.splice(PROJECTS.findIndex(p => p.id === id), 1);
+      activateView('today');
+      renderSidebar();
+
+    } else if (action === 'duplicate') {
+      const src  = getProject(id);
+      if (!src) return;
+      const newId  = 'p' + nextId();
+      const newProj = { id: newId, areaId: src.areaId, name: src.name + ' copy', collaborators: [...src.collaborators] };
+      const srcIdx = PROJECTS.findIndex(p => p.id === id);
+      PROJECTS.splice(srcIdx + 1, 0, newProj);
+      DB.createProject(newProj);
+      // Duplicate tasks too
+      const srcTasks = TASKS.filter(t => t.projectId === id);
+      srcTasks.forEach(t => {
+        const newTask = { ...t, id: nextId(), projectId: newId };
+        TASKS.push(newTask);
+        DB.createTask(newTask);
+      });
+      renderSidebar();
+      activateProject(newId);
+      showToast(`"${newProj.name}" created`);
+
+    } else if (action === 'move-to-area') {
+      const targetAreaId = item.dataset.areaId;
+      const proj = getProject(id);
+      if (proj && targetAreaId) {
+        proj.areaId = targetAreaId;
+        DB.updateProject(id, { areaId: targetAreaId });
+        renderSidebar();
+        activateProject(id);
+      }
+    }
+  });
+});
+
+document.addEventListener('click', e => {
+  if (!document.getElementById('sbAreaMenu').contains(e.target) &&
+      !document.getElementById('sbProjMenu').contains(e.target)) {
+    hideSbMenus();
+  }
+});
 
 document.getElementById('ctxMenu').addEventListener('click', e => {
   const item = e.target.closest('[data-action]');
