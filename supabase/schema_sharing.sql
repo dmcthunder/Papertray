@@ -113,6 +113,40 @@ create policy "Shared members can read headings"
     )
   );
 
+-- Projects: shared members can update (rename, etc.)
+create policy "Shared members can update projects"
+  on public.projects for update
+  using (
+    exists (
+      select 1 from public.shares s
+      where s.member_id = auth.uid()
+        and (
+          (s.resource_type = 'project' and s.resource_id = projects.id)
+          or
+          (s.resource_type = 'area'    and s.resource_id = projects.area_id)
+        )
+    )
+  )
+  with check (true);
+
+-- Headings: shared members can update
+create policy "Shared members can update headings"
+  on public.headings for update
+  using (
+    exists (
+      select 1 from public.projects p
+      join  public.shares s
+        on  s.member_id = auth.uid()
+        and (
+          (s.resource_type = 'project' and s.resource_id = p.id)
+          or
+          (s.resource_type = 'area'    and s.resource_id = p.area_id)
+        )
+      where p.id = headings.project_id
+    )
+  )
+  with check (true);
+
 -- Tasks: shared members can read
 create policy "Shared members can read tasks"
   on public.tasks for select
@@ -243,6 +277,12 @@ $$;
 
 revoke execute on function public.get_invite_preview(text) from public;
 grant  execute on function public.get_invite_preview(text) to anon, authenticated;
+
+-- ─── Enable Realtime on shared tables ─────────────────────
+alter publication supabase_realtime add table public.areas;
+alter publication supabase_realtime add table public.projects;
+alter publication supabase_realtime add table public.headings;
+alter publication supabase_realtime add table public.tasks;
 
 -- ─── Indexes ───────────────────────────────────────────────
 create index if not exists invites_token   on public.invites (token);

@@ -309,7 +309,8 @@
     if ('areaId'        in patch) row.area_id        = patch.areaId;
     if ('collaborators' in patch) row.collaborators  = patch.collaborators;
     if ('orderIdx'      in patch) row.order_idx      = patch.orderIdx;
-    await _sb.from('projects').update(row).eq('id', id).eq('user_id', uid);
+    // No user_id check — shared members can rename projects they have access to (RLS handles auth)
+    await _sb.from('projects').update(row).eq('id', id);
   }
 
   async function deleteProject(id) {
@@ -330,11 +331,11 @@
 
   async function updateHeading(id, patch) {
     if (!_sb) return;
-    const uid = await getUserId(); if (!uid) return;
     const row = {};
     if ('name'  in patch) row.name      = patch.name;
     if ('order' in patch) row.order_idx = patch.order;
-    await _sb.from('headings').update(row).eq('id', id).eq('user_id', uid);
+    // No user_id check — shared members can update headings (RLS handles auth)
+    await _sb.from('headings').update(row).eq('id', id);
   }
 
   async function deleteHeading(id) {
@@ -430,15 +431,18 @@
 
   async function subscribeRealtime(onChange) {
     if (!_sb) return;
-    const uid = await getUserId(); if (!uid) return;
+    if (!await getUserId()) return;
 
     if (_realtimeChannel) _sb.removeChannel(_realtimeChannel);
 
+    // No user_id filter — we want changes from ALL users (own + collaborators).
+    // The server already controls what rows each user can see via RLS.
     _realtimeChannel = _sb
       .channel('papertray-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks',    filter: `user_id=eq.${uid}` }, onChange)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects', filter: `user_id=eq.${uid}` }, onChange)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'areas',    filter: `user_id=eq.${uid}` }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks'    }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'areas'    }, onChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'headings' }, onChange)
       .subscribe();
   }
 

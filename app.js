@@ -1489,6 +1489,74 @@ function showToast(msg) {
 })();
 
 // ═══════════════════════════════════════════════════════════
+// REALTIME SYNC
+// ═══════════════════════════════════════════════════════════
+
+function _mapTaskRow(r) {
+  return {
+    id: r.id, projectId: r.project_id, name: r.name,
+    status: r.status, bucket: r.bucket, section: r.section,
+    assigneeId: r.assignee_id, tags: r.tags || [],
+    dueLabel: r.due_label, dueDate: r.due_date,
+  };
+}
+
+function handleRealtimeChange(payload) {
+  const { eventType: evt, table, new: n, old: o } = payload;
+  const rowId = (n && n.id) || (o && o.id);
+  if (!rowId) return;
+
+  if (table === 'tasks') {
+    const idx = TASKS.findIndex(t => t.id === rowId);
+    if (evt === 'DELETE') {
+      if (idx !== -1) TASKS.splice(idx, 1);
+    } else {
+      const mapped = _mapTaskRow(n);
+      if (idx !== -1) TASKS[idx] = { ...TASKS[idx], ...mapped };
+      else TASKS.push(mapped);
+    }
+
+  } else if (table === 'projects') {
+    const idx = PROJECTS.findIndex(p => p.id === rowId);
+    if (evt === 'DELETE') {
+      if (idx !== -1) PROJECTS.splice(idx, 1);
+    } else {
+      const mapped = { id: n.id, areaId: n.area_id, name: n.name, collaborators: [] };
+      if (idx !== -1) PROJECTS[idx] = { ...PROJECTS[idx], ...mapped };
+      else PROJECTS.push(mapped);
+    }
+
+  } else if (table === 'areas') {
+    const idx = AREAS.findIndex(a => a.id === rowId);
+    if (evt === 'DELETE') {
+      if (idx !== -1) AREAS.splice(idx, 1);
+    } else {
+      const mapped = { id: n.id, name: n.name, isShared: n.is_shared, collaborators: [] };
+      if (idx !== -1) AREAS[idx] = { ...AREAS[idx], ...mapped };
+      else AREAS.push(mapped);
+    }
+
+  } else if (table === 'headings') {
+    const idx = HEADINGS.findIndex(h => h.id === rowId);
+    if (evt === 'DELETE') {
+      if (idx !== -1) HEADINGS.splice(idx, 1);
+    } else {
+      const mapped = { id: n.id, projectId: n.project_id, name: n.name, order: n.order_idx };
+      if (idx !== -1) HEADINGS[idx] = { ...HEADINGS[idx], ...mapped };
+      else HEADINGS.push(mapped);
+    }
+  }
+
+  // Re-render affected parts of the UI
+  renderSidebar();
+  updateBadges();
+  // Refresh the current view if it shows content that may have changed
+  if (state.activeProjectId) activateProject(state.activeProjectId);
+  else if (state.activeAreaId) activateArea(state.activeAreaId);
+  else activateView(state.view);
+}
+
+// ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
 
@@ -1503,4 +1571,6 @@ document.querySelectorAll('.nav-item[data-view]').forEach(item => {
   activateView('today');
   updateBadges();
   updateAvatarBtn();
+  // Subscribe to real-time changes from all collaborators
+  DB.subscribeRealtime(handleRealtimeChange);
 })();
