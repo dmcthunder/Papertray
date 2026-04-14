@@ -138,11 +138,11 @@ function renderSidebar() {
         const dragged = getProject(draggedProjectId);
         if (!dragged) return;
         dragged.areaId = area.id;
-        DB.updateProject(dragged.id, { areaId: area.id });
         const fromIdx = PROJECTS.indexOf(dragged);
         PROJECTS.splice(fromIdx, 1);
         const toIdx = PROJECTS.indexOf(proj);
         PROJECTS.splice(toIdx, 0, dragged);
+        persistProjectOrder();
         renderSidebar();
       });
 
@@ -159,6 +159,10 @@ function renderSidebar() {
   });
 }
 
+function persistProjectOrder() {
+  PROJECTS.forEach((p, i) => DB.updateProject(p.id, { orderIdx: i }));
+}
+
 function wireDropZone(zone, areaId, afterProjId) {
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
   zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
@@ -170,7 +174,6 @@ function wireDropZone(zone, areaId, afterProjId) {
     if (!dragged) return;
     if (dragged.areaId !== areaId) {
       dragged.areaId = areaId;
-      DB.updateProject(dragged.id, { areaId });
     }
     PROJECTS.splice(PROJECTS.indexOf(dragged), 1);
     if (afterProjId) {
@@ -180,6 +183,7 @@ function wireDropZone(zone, areaId, afterProjId) {
       const first = PROJECTS.findIndex(p => p.areaId === areaId);
       PROJECTS.splice(first === -1 ? 0 : first, 0, dragged);
     }
+    persistProjectOrder(); // save new order + any areaId change to DB
     renderSidebar();
   });
 }
@@ -920,13 +924,10 @@ function closeNlPopover() {
 document.getElementById('nl-area').addEventListener('click', () => {
   closeNlPopover();
   const id = 'a' + nextId();
-  const newArea = { id, name: 'New Area', isShared: false, collaborators: [] };
+  const newArea = { id, name: 'New Area', isShared: false, collaborators: [], _pending: true };
   AREAS.push(newArea);
-  renderSidebar();
-  startInlineEdit(id, 'area');
-  // DB.createArea called after commit (in startInlineEdit → commit → renderSidebar)
-  // We defer creation until name is confirmed
-  newArea._pending = true;
+  activateArea(id);            // switches main content + sidebar state immediately
+  startInlineEdit(id, 'area'); // makes the name editable (sidebar already rebuilt by activateArea)
 });
 
 document.getElementById('nl-project').addEventListener('click', () => {
@@ -936,11 +937,10 @@ document.getElementById('nl-project').addEventListener('click', () => {
     || AREAS[0]?.id;
   if (!areaId) { showToast('Create an area first'); return; }
   const id = 'p' + nextId();
-  const newProject = { id, areaId, name: 'New Project', collaborators: [] };
+  const newProject = { id, areaId, name: 'New Project', collaborators: [], _pending: true };
   PROJECTS.push(newProject);
-  renderSidebar();
-  startInlineEdit(id, 'project');
-  newProject._pending = true;
+  activateProject(id);            // switches main content + sidebar state immediately
+  startInlineEdit(id, 'project'); // makes the name editable (sidebar already rebuilt)
 });
 
 // ─── Inline rename for newly created entries ──────────────
@@ -982,36 +982,28 @@ function startInlineEdit(id, type) {
     const newName = labelEl.textContent.trim();
     labelEl.contentEditable = 'false';
     labelEl.classList.remove('inline-editing');
-    if (!newName) {
-      // Empty — remove the entry
-      cancel();
-      return;
-    }
+    if (!newName) { cancel(); return; }
     dataObj.name = newName;
-    // Persist to DB
     if (type === 'area') {
       if (dataObj._pending) { delete dataObj._pending; DB.createArea(dataObj); }
       else { DB.updateArea(id, { name: newName }); }
+      activateArea(id);    // updates header title + sidebar
     } else {
       if (dataObj._pending) { delete dataObj._pending; DB.createProject(dataObj); }
       else { DB.updateProject(id, { name: newName }); }
+      activateProject(id); // updates header title + sidebar
     }
-    renderSidebar();
-    if (type === 'project') activateProject(id);
-    else activateArea(id);
   }
 
   function cancel() {
     labelEl.contentEditable = 'false';
     labelEl.classList.remove('inline-editing');
     if (type === 'area') {
-      const idx = AREAS.findIndex(a => a.id === id);
-      if (idx >= 0) { if (!AREAS[idx]._pending) DB.deleteArea(id); AREAS.splice(idx, 1); }
+      AREAS.splice(AREAS.findIndex(a => a.id === id), 1);
     } else {
-      const idx = PROJECTS.findIndex(p => p.id === id);
-      if (idx >= 0) { if (!PROJECTS[idx]._pending) DB.deleteProject(id); PROJECTS.splice(idx, 1); }
+      PROJECTS.splice(PROJECTS.findIndex(p => p.id === id), 1);
     }
-    renderSidebar();
+    activateView('today'); // navigate away cleanly
   }
 
   let committed = false;

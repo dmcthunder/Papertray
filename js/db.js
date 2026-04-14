@@ -83,8 +83,8 @@
       { data: taskRows },
     ] = await Promise.all([
       _sb.from('profiles').select('*').eq('id', uid).maybeSingle(),
-      _sb.from('areas').select('*').eq('user_id', uid).order('order_idx'),
-      _sb.from('projects').select('*').eq('user_id', uid).order('order_idx'),
+      _sb.from('areas').select('*').eq('user_id', uid).order('order_idx', { nullsFirst: false }).order('created_at'),
+      _sb.from('projects').select('*').eq('user_id', uid).order('order_idx', { nullsFirst: false }).order('created_at'),
       _sb.from('headings').select('*').eq('user_id', uid).order('order_idx'),
       _sb.from('tasks').select('*').eq('user_id', uid).order('order_idx'),
     ]);
@@ -253,6 +253,7 @@
     if ('name'          in patch) row.name          = patch.name;
     if ('areaId'        in patch) row.area_id        = patch.areaId;
     if ('collaborators' in patch) row.collaborators  = patch.collaborators;
+    if ('orderIdx'      in patch) row.order_idx      = patch.orderIdx;
     await _sb.from('projects').update(row).eq('id', id).eq('user_id', uid);
   }
 

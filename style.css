@@ -17,6 +17,10 @@
   --ring-track:  rgba(0,0,0,0.12);
   --ring-fill:   #1C1C1E;
   --shadow:      0 1px 3px rgba(0,0,0,0.06), 0 0 0 0.5px rgba(0,0,0,0.05);
+  /* menus & popovers */
+  --menu-bg:     #FFFFFF;
+  --menu-border: #EDEDED;
+  --menu-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
   /* collaborator colours */
   --c1: #C07A6A; --c2: #5A9E96; --c3: #7E6DB8; --c4: #B8922A; --c5: #4A8BB5;
 }
@@ -34,6 +38,10 @@
     --blue-bg:    rgba(10,132,255,0.15);
     --ring-track: rgba(255,255,255,0.13);
     --ring-fill:  #F2F2F7;
+    /* menus & popovers — dark */
+    --menu-bg:     #2C2C2E;
+    --menu-border: rgba(255,255,255,0.1);
+    --menu-shadow: 0 4px 24px rgba(0,0,0,0.4), 0 1px 6px rgba(0,0,0,0.3);
   }
 }
 
@@ -719,10 +727,10 @@ html, body {
 /* ─── New List popover ────────────────────────────────────── */
 .nl-popover {
   position: fixed;
-  background: #FFFFFF;
+  background: var(--menu-bg);
   border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
-  border: 1px solid #EDEDED;
+  box-shadow: var(--menu-shadow);
+  border: 1px solid var(--menu-border);
   padding: 4px;
   z-index: 500;
   min-width: 180px;
@@ -749,10 +757,10 @@ html, body {
 /* ─── Context menu ────────────────────────────────────────── */
 .ctx-menu {
   position: fixed;
-  background: #FFFFFF;
+  background: var(--menu-bg);
   border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
-  border: 1px solid #EDEDED;
+  box-shadow: var(--menu-shadow);
+  border: 1px solid var(--menu-border);
   padding: 4px;
   z-index: 600;
   min-width: 200px;
@@ -795,10 +803,10 @@ html, body {
   position: absolute;
   left: calc(100% + 4px);
   top: -4px;
-  background: #FFFFFF;
+  background: var(--menu-bg);
   border-radius: 10px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05);
-  border: 1px solid #EDEDED;
+  box-shadow: var(--menu-shadow);
+  border: 1px solid var(--menu-border);
   padding: 4px;
   min-width: 170px;
   z-index: 601;
