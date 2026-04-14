@@ -180,6 +180,7 @@ declare
   v_invite       public.invites%rowtype;
   v_member_email text;
 begin
+  if auth.uid() is null              then return jsonb_build_object('error', 'not_authenticated'); end if;
   select * into v_invite from public.invites where token = p_token;
   if not found                       then return jsonb_build_object('error', 'not_found'); end if;
   if v_invite.expires_at < now()     then return jsonb_build_object('error', 'expired');   end if;

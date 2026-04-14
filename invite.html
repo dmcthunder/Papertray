@@ -340,6 +340,18 @@
       return;
     }
 
+    // After sign-up, Supabase may require email confirmation before issuing a session.
+    // Check whether we actually have a session right now.
+    if (_mode === 'signup') {
+      const { data: sessionCheck } = await _sb.auth.getSession();
+      if (!sessionCheck || !sessionCheck.session) {
+        // Email confirmation required — tell the user to confirm then come back
+        document.getElementById('authSection').classList.remove('visible');
+        setStatus('Almost there! Check your email and click the confirmation link, then open this invite link again to finish joining.');
+        return;
+      }
+    }
+
     // Signed in — now accept the invite
     await acceptAndRedirect();
   }
