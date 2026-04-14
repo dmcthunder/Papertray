@@ -8,4 +8,4 @@
 // ════════════════════════════════════════════════════════════
 
 const SUPABASE_URL      = 'https://tfjmfqdgbenetlwagxaw.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGci...your full key here...';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmam1mcWRnYmVuZXRsd2FneGF3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxMTIxMDgsImV4cCI6MjA5MTY4ODEwOH0.CDJQXrJL2Lhhddg5DGiJJUlP8SiwQ2RBy3RjgcMGhng';
