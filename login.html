@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Papertray — Sign in</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #F2F2F7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: #1C1C1E;
+    }
+
+    .card {
+      background: #FFFFFF;
+      border-radius: 16px;
+      padding: 40px 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 2px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+    .logo-mark {
+      width: 36px; height: 36px;
+      background: #007AFF;
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .logo-mark svg { display: block; }
+    .logo-name {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+      color: #1C1C1E;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.4px;
+      margin-bottom: 4px;
+    }
+    .subtitle {
+      font-size: 14px;
+      color: #8E8E93;
+      margin-bottom: 28px;
+    }
+
+    .tabs {
+      display: flex;
+      background: #EFEFF4;
+      border-radius: 9px;
+      padding: 3px;
+      margin-bottom: 24px;
+    }
+    .tab {
+      flex: 1;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 6px 0;
+      border-radius: 7px;
+      cursor: pointer;
+      color: #8E8E93;
+      transition: background 0.15s, color 0.15s;
+      user-select: none;
+    }
+    .tab.active {
+      background: #FFFFFF;
+      color: #1C1C1E;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: #8E8E93;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #E5E5EA;
+      border-radius: 10px;
+      font-size: 15px;
+      font-family: inherit;
+      color: #1C1C1E;
+      background: #FAFAFA;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input:focus {
+      border-color: #007AFF;
+      box-shadow: 0 0 0 3px rgba(0,122,255,0.12);
+      background: #FFFFFF;
+    }
+    input.error {
+      border-color: #FF3B30;
+      box-shadow: 0 0 0 3px rgba(255,59,48,0.1);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 12px;
+      background: #007AFF;
+      color: #FFFFFF;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.15s, transform 0.08s;
+    }
+    .btn-primary:hover  { background: #0069D9; }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled { background: #A2C4F5; cursor: not-allowed; }
+
+    .error-msg {
+      font-size: 13px;
+      color: #FF3B30;
+      margin-top: 10px;
+      text-align: center;
+      min-height: 18px;
+    }
+
+    .footer-note {
+      font-size: 12px;
+      color: #8E8E93;
+      text-align: center;
+      margin-top: 20px;
+      line-height: 1.5;
+    }
+
+    /* Spinner inside button */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      display: inline-block;
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    .name-fields { display: none; }
+    .tab-signup .name-fields { display: grid; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <rect x="2" y="5" width="16" height="11" rx="2.5" fill="white"/>
+        <rect x="6" y="2" width="8" height="4" rx="1.5" fill="rgba(255,255,255,0.6)"/>
+      </svg>
+    </div>
+    <span class="logo-name">Papertray</span>
+  </div>
+
+  <h1 id="formTitle">Welcome back</h1>
+  <p class="subtitle" id="formSubtitle">Sign in to your workspace</p>
+
+  <div class="tabs">
+    <div class="tab active" id="tabSignin" onclick="switchTab('signin')">Sign in</div>
+    <div class="tab"        id="tabSignup" onclick="switchTab('signup')">Create account</div>
+  </div>
+
+  <div class="form-row name-fields" id="nameFields">
+    <div class="form-group">
+      <label>First name</label>
+      <input type="text" id="firstName" placeholder="Alex" autocomplete="given-name"/>
+    </div>
+    <div class="form-group">
+      <label>Last name</label>
+      <input type="text" id="lastName" placeholder="Lee" autocomplete="family-name"/>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Email</label>
+    <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email"/>
+  </div>
+
+  <div class="form-group">
+    <label>Password</label>
+    <input type="password" id="passwordInput" placeholder="••••••••" autocomplete="current-password"/>
+  </div>
+
+  <div class="error-msg" id="errorMsg"></div>
+
+  <button class="btn-primary" id="submitBtn" onclick="handleSubmit()">Sign in</button>
+
+  <p class="footer-note" id="footerNote">
+    By continuing, you agree to our Terms of Service and Privacy Policy.
+  </p>
+</div>
+
+<script src="js/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+  let _mode = 'signin';
+
+  function switchTab(mode) {
+    _mode = mode;
+    const isSignup = mode === 'signup';
+    document.getElementById('tabSignin').classList.toggle('active', !isSignup);
+    document.getElementById('tabSignup').classList.toggle('active',  isSignup);
+    document.getElementById('nameFields').style.display = isSignup ? 'grid' : 'none';
+    document.getElementById('formTitle').textContent    = isSignup ? 'Create account' : 'Welcome back';
+    document.getElementById('formSubtitle').textContent = isSignup ? 'Start your Papertray workspace' : 'Sign in to your workspace';
+    document.getElementById('submitBtn').textContent    = isSignup ? 'Create account' : 'Sign in';
+    document.getElementById('errorMsg').textContent     = '';
+    document.getElementById('passwordInput').autocomplete = isSignup ? 'new-password' : 'current-password';
+  }
+
+  async function handleSubmit() {
+    const email    = document.getElementById('emailInput').value.trim();
+    const password = document.getElementById('passwordInput').value;
+    const btn      = document.getElementById('submitBtn');
+    const errEl    = document.getElementById('errorMsg');
+
+    errEl.textContent = '';
+    if (!email || !password) { errEl.textContent = 'Please fill in all fields.'; return; }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>' + (_mode === 'signup' ? 'Creating...' : 'Signing in...');
+
+    const configured = typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+
+    if (!configured) {
+      // Demo mode: accept any credentials and redirect
+      setTimeout(() => { window.location.href = 'index.html'; }, 600);
+      return;
+    }
+
+    const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let result;
+    if (_mode === 'signup') {
+      const firstName = document.getElementById('firstName').value.trim();
+      const lastName  = document.getElementById('lastName').value.trim();
+      result = await _sb.auth.signUp({
+        email, password,
+        options: { data: { first_name: firstName, last_name: lastName } },
+      });
+    } else {
+      result = await _sb.auth.signInWithPassword({ email, password });
+    }
+
+    if (result.error) {
+      errEl.textContent = result.error.message;
+      btn.disabled = false;
+      btn.textContent = _mode === 'signup' ? 'Create account' : 'Sign in';
+    } else {
+      window.location.href = 'index.html';
+    }
+  }
+
+  // Allow Enter key to submit
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') handleSubmit();
+  });
+
+  // Auto-redirect if already logged in
+  (async function () {
+    const configured = typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+    if (!configured) return;
+    const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data } = await _sb.auth.getSession();
+    if (data.session) window.location.href = 'index.html';
+  })();
+</script>
+
+</body>
+</html>
