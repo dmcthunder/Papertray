@@ -205,6 +205,10 @@ html, body {
   font-weight: 500;
   flex-shrink: 0;
 }
+.shared-pip.shared-with-me {
+  background: rgba(52,199,89,0.12);
+  color: #1A8A36;
+}
 
 .collab-stack { display: flex; }
 .mini-av {

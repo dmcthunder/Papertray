@@ -144,6 +144,60 @@
       });
     }
 
+    // ── Phase 2: Load shared-with-me data ──────────────
+    // RLS policies in schema_sharing.sql allow reading rows not owned by uid
+    // when there is a matching entry in public.shares
+    const [
+      { data: sharedAreaRows },
+      { data: sharedProjectRows },
+    ] = await Promise.all([
+      _sb.from('areas').select('*').neq('user_id', uid).order('name'),
+      _sb.from('projects').select('*').neq('user_id', uid).order('name'),
+    ]);
+
+    if (sharedAreaRows && sharedAreaRows.length) {
+      sharedAreaRows.forEach(r => {
+        if (!AREAS.find(a => a.id === r.id)) {
+          AREAS.push({ id: r.id, name: r.name, isShared: true, isSharedWithMe: true, collaborators: [] });
+        }
+      });
+    }
+
+    if (sharedProjectRows && sharedProjectRows.length) {
+      const sharedProjectIds = sharedProjectRows.map(p => p.id);
+      sharedProjectRows.forEach(r => {
+        if (!PROJECTS.find(p => p.id === r.id)) {
+          PROJECTS.push({ id: r.id, areaId: r.area_id, name: r.name, isSharedWithMe: true, collaborators: [] });
+        }
+      });
+
+      // Load headings + tasks for shared projects (deduplicated)
+      const loadedTaskIds   = new Set(TASKS.map(t => t.id));
+      const loadedHeadingIds = new Set(HEADINGS.map(h => h.id));
+
+      const [{ data: shHdgs }, { data: shTasks }] = await Promise.all([
+        _sb.from('headings').select('*').in('project_id', sharedProjectIds).order('order_idx'),
+        _sb.from('tasks').select('*').in('project_id', sharedProjectIds).order('order_idx'),
+      ]);
+
+      (shHdgs || []).forEach(r => {
+        if (!loadedHeadingIds.has(r.id)) {
+          HEADINGS.push({ id: r.id, projectId: r.project_id, name: r.name, order: r.order_idx });
+        }
+      });
+
+      (shTasks || []).forEach(r => {
+        if (!loadedTaskIds.has(r.id)) {
+          TASKS.push({
+            id: r.id, projectId: r.project_id, name: r.name,
+            status: r.status, bucket: r.bucket, section: r.section,
+            assigneeId: r.assignee_id, tags: r.tags || [],
+            dueLabel: r.due_label, dueDate: r.due_date,
+          });
+        }
+      });
+    }
+
     return true;
   }
 
@@ -201,7 +255,8 @@
     if ('name'       in patch) row.name        = patch.name;
     if ('tags'       in patch) row.tags        = patch.tags;
     if (!Object.keys(row).length) return;
-    await _sb.from('tasks').update(row).eq('id', id).eq('user_id', uid);
+    // No user_id check — RLS UPDATE policy handles auth (allows shared-member edits)
+    await _sb.from('tasks').update(row).eq('id', id);
   }
 
   async function deleteTask(id) {
@@ -300,6 +355,76 @@
     await _sb.from('profiles').update(row).eq('id', uid);
   }
 
+  // ── Sharing ─────────────────────────────────────────────
+
+  async function createInvite(resourceType, resourceId, email) {
+    if (!_sb) return null;
+    const uid = await getUserId(); if (!uid) return null;
+    const row = { resource_type: resourceType, resource_id: resourceId, owner_id: uid };
+    if (email) row.invitee_email = email;
+    const { data, error } = await _sb.from('invites').insert(row).select().single();
+    if (error) { console.error('[DB] createInvite', error); return null; }
+    return data;
+  }
+
+  async function getShares(resourceType, resourceId) {
+    if (!_sb) return [];
+    const uid = await getUserId(); if (!uid) return [];
+    const { data, error } = await _sb
+      .from('shares')
+      .select('id, member_id, member_email, created_at')
+      .eq('owner_id', uid)
+      .eq('resource_type', resourceType)
+      .eq('resource_id', resourceId);
+    if (error || !data || !data.length) return [];
+
+    // Enrich with profile names/photos
+    const memberIds = data.map(s => s.member_id);
+    const { data: profiles } = await _sb
+      .from('profiles')
+      .select('id, first_name, last_name, email, photo')
+      .in('id', memberIds);
+    const pm = {};
+    (profiles || []).forEach(p => { pm[p.id] = p; });
+
+    const COLORS = ['#007AFF','#34C759','#FF9500','#FF3B30','#AF52DE','#5AC8FA'];
+    return data.map(s => {
+      const p = pm[s.member_id] || {};
+      const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || s.member_email || 'Unknown';
+      const initials = name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+      const colorIdx = s.member_id.charCodeAt(0) % COLORS.length;
+      return {
+        id:          s.id,
+        memberId:    s.member_id,
+        memberEmail: s.member_email || p.email || '',
+        memberName:  name,
+        memberInitials: initials,
+        memberPhoto: p.photo || null,
+        memberColor: COLORS[colorIdx],
+      };
+    });
+  }
+
+  async function removeShare(shareId) {
+    if (!_sb) return;
+    const uid = await getUserId(); if (!uid) return;
+    await _sb.from('shares').delete().eq('id', shareId).eq('owner_id', uid);
+  }
+
+  async function acceptInvite(token) {
+    if (!_sb) return { error: 'not_configured' };
+    const { data, error } = await _sb.rpc('accept_invite', { p_token: token });
+    if (error) return { error: error.message };
+    return data;
+  }
+
+  async function getInvitePreview(token) {
+    if (!_sb) return { error: 'not_configured' };
+    const { data, error } = await _sb.rpc('get_invite_preview', { p_token: token });
+    if (error) return { error: error.message };
+    return data;
+  }
+
   // ── Realtime subscription ───────────────────────────────
   let _realtimeChannel = null;
 
@@ -333,6 +458,8 @@
     createHeading, updateHeading, deleteHeading,
     // Profile
     updateProfile,
+    // Sharing
+    createInvite, getShares, removeShare, acceptInvite, getInvitePreview,
     // Realtime
     subscribeRealtime,
     // Utility

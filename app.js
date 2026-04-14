@@ -34,12 +34,10 @@ function renderSidebar() {
     hdr.dataset.areaId = area.id;
 
     let sharedHTML = '';
-    if (area.isShared) {
-      const avs = area.collaborators.map(cid => {
-        const c = COLLABORATORS[cid];
-        return `<div class="mini-av" style="background:${c.color}" title="${c.name}">${c.initials}</div>`;
-      }).join('');
-      sharedHTML = `<span class="shared-pip">Shared</span><div class="collab-stack">${avs}</div>`;
+    if (area.isSharedWithMe) {
+      sharedHTML = `<span class="shared-pip shared-with-me">Shared</span>`;
+    } else if (area.isShared) {
+      sharedHTML = `<span class="shared-pip">Shared</span>`;
     }
     hdr.innerHTML = `
       <div class="nav-icon" style="width:20px;height:20px">
@@ -89,10 +87,9 @@ function renderSidebar() {
              stroke-linecap="round" transform="rotate(-90 7.5 7.5)"/>`
         : '';
 
-      const collabs = proj.collaborators.map(cid => {
-        const c = COLLABORATORS[cid];
-        return `<div class="mini-av" style="background:${c.color}" title="${c.name}">${c.initials}</div>`;
-      }).join('');
+      const sharedBadge = proj.isSharedWithMe
+        ? `<span class="shared-pip shared-with-me" style="font-size:9px;padding:1px 5px">Shared</span>`
+        : '';
 
       const row = document.createElement('div');
       row.className = 'proj-row' + (isActive ? ' active' : '');
@@ -104,7 +101,7 @@ function renderSidebar() {
           ${fillArc}
         </svg>
         <span class="proj-name">${proj.name}</span>
-        ${collabs ? `<div class="collab-stack">${collabs}</div>` : ''}
+        ${sharedBadge}
       `;
 
       row.addEventListener('click', e => { e.stopPropagation(); activateProject(proj.id); });
@@ -1213,7 +1210,7 @@ function startTitleEdit(type, id) {
 
 let _shareContext = null; // { type: 'project'|'area', id }
 
-function handleShare() {
+async function handleShare() {
   // Determine context: active project or area
   if (state.activeProjectId) {
     _shareContext = { type: 'project', id: state.activeProjectId };
@@ -1222,12 +1219,6 @@ function handleShare() {
   } else {
     _shareContext = null;
   }
-
-  // Build a fake invite link
-  const token = Math.random().toString(36).slice(2, 10);
-  const linkText = `https://papertray.app/invite/${token}`;
-  document.getElementById('shareLinkText').textContent = linkText;
-  document.getElementById('shareLinkText').dataset.link = linkText;
 
   // Title
   let title = 'Share';
@@ -1239,8 +1230,13 @@ function handleShare() {
   }
   document.getElementById('shareModalTitle').textContent = title;
 
-  renderShareCollabs();
-  renderShareAddList();
+  // Placeholder while we generate a real link
+  const linkTextEl = document.getElementById('shareLinkText');
+  linkTextEl.textContent = 'Generating link…';
+  linkTextEl.dataset.link = '';
+
+  // Hide legacy "Add team members" section (replaced by email invite)
+  document.getElementById('shareAddSection').style.display = 'none';
 
   // Reset copy button & email input
   const copyBtn = document.getElementById('btnCopyLink');
@@ -1250,6 +1246,26 @@ function handleShare() {
 
   document.getElementById('shareModal').style.display = 'flex';
   setTimeout(() => document.getElementById('inviteEmailInput').focus(), 120);
+
+  // Load current collaborators
+  await renderShareCollabs();
+
+  // Generate a real invite link (no specific email — anyone with the link can join)
+  if (_shareContext && DB.isConfigured()) {
+    try {
+      const invite = await DB.createInvite(_shareContext.type, _shareContext.id, null);
+      if (invite && invite.token) {
+        const link = `${window.location.origin}/invite.html?token=${invite.token}`;
+        linkTextEl.textContent = link;
+        linkTextEl.dataset.link = link;
+      } else {
+        linkTextEl.textContent = 'Could not generate link';
+      }
+    } catch (err) {
+      console.error('[Share] createInvite error', err);
+      linkTextEl.textContent = 'Could not generate link';
+    }
+  }
 }
 
 function closeShare() {
@@ -1264,39 +1280,49 @@ function _getShareObj() {
     : getArea(_shareContext.id);
 }
 
-function renderShareCollabs() {
+async function renderShareCollabs() {
   const listEl = document.getElementById('shareCollabsList');
-  listEl.innerHTML = '';
-  const obj = _getShareObj();
-  const currentIds = obj ? (obj.collaborators || []) : [];
+  listEl.innerHTML = '<div style="padding:8px 0;color:var(--muted);font-size:13px">Loading…</div>';
 
   // Owner row (always first)
-  const initials = ((USER_PROFILE.firstName||'')[0] + (USER_PROFILE.lastName||'')[0]).toUpperCase();
+  const ownerInitials = ((USER_PROFILE.firstName||'')[0] + (USER_PROFILE.lastName||'')[0]).toUpperCase() || '?';
   const ownerRow = document.createElement('div');
   ownerRow.className = 'share-collab-row';
   ownerRow.innerHTML = `
-    <div class="share-collab-av" style="background:var(--blue)">${initials}</div>
+    <div class="share-collab-av" style="background:var(--blue)">${ownerInitials}</div>
     <div class="share-collab-info">
       <div class="share-collab-name">${USER_PROFILE.firstName} ${USER_PROFILE.lastName}</div>
       <div class="share-collab-email">${USER_PROFILE.email}</div>
     </div>
     <span class="share-collab-role owner">Owner</span>`;
+
+  listEl.innerHTML = '';
   listEl.appendChild(ownerRow);
 
-  // Member rows
-  currentIds.forEach(cid => {
-    const c = COLLABORATORS[cid];
-    if (!c) return;
+  if (!_shareContext || !DB.isConfigured()) return;
+
+  const shares = await DB.getShares(_shareContext.type, _shareContext.id);
+
+  if (!shares.length) {
+    const empty = document.createElement('div');
+    empty.className = 'share-add-empty';
+    empty.style.marginTop = '8px';
+    empty.textContent = 'No collaborators yet. Share the invite link or send an email invite below.';
+    listEl.appendChild(empty);
+    return;
+  }
+
+  shares.forEach(s => {
     const row = document.createElement('div');
     row.className = 'share-collab-row';
     row.innerHTML = `
-      <div class="share-collab-av" style="background:${c.color}">${c.initials}</div>
+      <div class="share-collab-av" style="background:${s.memberColor}">${s.memberInitials}</div>
       <div class="share-collab-info">
-        <div class="share-collab-name">${c.name}</div>
-        <div class="share-collab-email">${c.name.toLowerCase().replace(' ','.')}@team.com</div>
+        <div class="share-collab-name">${s.memberName}</div>
+        <div class="share-collab-email">${s.memberEmail}</div>
       </div>
       <span class="share-collab-role">Member</span>
-      <button class="btn-collab-remove" title="Remove" onclick="removeCollaborator('${cid}')">
+      <button class="btn-collab-remove" title="Remove access" onclick="removeCollaborator('${s.id}')">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
           <path d="M2 2l9 9M11 2l-9 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
         </svg>
@@ -1305,57 +1331,10 @@ function renderShareCollabs() {
   });
 }
 
-function renderShareAddList() {
-  const addEl = document.getElementById('shareAddList');
-  addEl.innerHTML = '';
-  const obj = _getShareObj();
-  const currentIds = new Set(obj ? (obj.collaborators || []) : []);
-  const available = Object.values(COLLABORATORS).filter(c => !currentIds.has(c.id));
-
-  if (!available.length) {
-    addEl.innerHTML = `<div class="share-add-empty">All team members already have access.</div>`;
-    return;
-  }
-
-  available.forEach(c => {
-    const row = document.createElement('div');
-    row.className = 'share-add-row';
-    row.innerHTML = `
-      <div class="share-collab-av" style="background:${c.color}">${c.initials}</div>
-      <div class="share-add-info">
-        <div class="share-add-name">${c.name}</div>
-        <div class="share-add-role">Team member</div>
-      </div>
-      <button class="btn-add-collab" onclick="addCollaborator('${c.id}')">Add</button>`;
-    addEl.appendChild(row);
-  });
-}
-
-function addCollaborator(collabId) {
-  const obj = _getShareObj();
-  if (!obj) return;
-  if (!obj.collaborators) obj.collaborators = [];
-  if (!obj.collaborators.includes(collabId)) {
-    obj.collaborators.push(collabId);
-    if (_shareContext.type === 'project') DB.updateProject(obj.id, { collaborators: obj.collaborators });
-    else DB.updateArea(obj.id, { collaborators: obj.collaborators });
-  }
-  renderShareCollabs();
-  renderShareAddList();
-  renderSidebar();
-  showToast(`${COLLABORATORS[collabId].name} added`);
-}
-
-function removeCollaborator(collabId) {
-  const obj = _getShareObj();
-  if (!obj || !obj.collaborators) return;
-  obj.collaborators = obj.collaborators.filter(id => id !== collabId);
-  if (_shareContext.type === 'project') DB.updateProject(obj.id, { collaborators: obj.collaborators });
-  else DB.updateArea(obj.id, { collaborators: obj.collaborators });
-  renderShareCollabs();
-  renderShareAddList();
-  renderSidebar();
-  showToast(`${COLLABORATORS[collabId].name} removed`);
+async function removeCollaborator(shareId) {
+  await DB.removeShare(shareId);
+  await renderShareCollabs();
+  showToast('Collaborator removed');
 }
 
 function copyShareLink() {
@@ -1375,17 +1354,40 @@ function handleInviteKey(e) {
   if (e.key === 'Enter') sendInvite();
 }
 
-function sendInvite() {
+async function sendInvite() {
   const input = document.getElementById('inviteEmailInput');
   const email = input.value.trim();
   if (!email || !email.includes('@')) {
-    input.style.setProperty('--shake', '1');
     input.closest('.invite-input-wrap').style.borderColor = 'var(--red)';
     setTimeout(() => input.closest('.invite-input-wrap').style.borderColor = '', 900);
     return;
   }
+
+  if (!_shareContext || !DB.isConfigured()) {
+    showToast(`Invite sent to ${email}`);
+    input.value = '';
+    return;
+  }
+
+  const btn = document.querySelector('.btn-send-invite');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+  try {
+    const invite = await DB.createInvite(_shareContext.type, _shareContext.id, email);
+    if (invite && invite.token) {
+      const link = `${window.location.origin}/invite.html?token=${invite.token}`;
+      await navigator.clipboard.writeText(link).catch(() => {});
+      showToast(`Invite link for ${email} copied to clipboard!`);
+    } else {
+      showToast(`Could not create invite — please try again`);
+    }
+  } catch (err) {
+    console.error('[Share] sendInvite error', err);
+    showToast(`Error sending invite`);
+  }
+
+  if (btn) { btn.disabled = false; btn.textContent = 'Send invite'; }
   input.value = '';
-  showToast(`Invite sent to ${email}`);
 }
 
 // ═══════════════════════════════════════════════════════════
