@@ -332,6 +332,16 @@ html, body {
   gap: 10px;
   line-height: 1.2;
 }
+#titleText[contenteditable="true"] {
+  border-radius: 6px;
+  background: var(--hover);
+  padding: 0 6px;
+  caret-color: var(--blue);
+  cursor: text;
+}
+/* Subtle double-click hint on project/area titles */
+#titleText[ondblclick] { cursor: default; }
+#titleText[ondblclick]:hover { opacity: 0.85; }
 
 .proj-sub {
   font-size: 12px;

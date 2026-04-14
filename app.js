@@ -52,6 +52,7 @@ function renderSidebar() {
     `;
     hdr.style.cursor = 'pointer';
     hdr.addEventListener('click', () => activateArea(area.id));
+    hdr.addEventListener('dblclick', e => { e.stopPropagation(); activateArea(area.id); startInlineEdit(area.id, 'area'); });
 
     // Drag-over → move project to this area
     hdr.addEventListener('dragover', e => { e.preventDefault(); hdr.style.background = 'var(--blue-bg)'; });
@@ -106,6 +107,7 @@ function renderSidebar() {
       `;
 
       row.addEventListener('click', e => { e.stopPropagation(); activateProject(proj.id); });
+      row.addEventListener('dblclick', e => { e.stopPropagation(); activateProject(proj.id); startInlineEdit(proj.id, 'project'); });
 
       // ── Drag source ──
       row.addEventListener('dragstart', e => {
@@ -134,6 +136,7 @@ function renderSidebar() {
         const dragged = getProject(draggedProjectId);
         if (!dragged) return;
         dragged.areaId = area.id;
+        DB.updateProject(dragged.id, { areaId: area.id });
         const fromIdx = PROJECTS.indexOf(dragged);
         PROJECTS.splice(fromIdx, 1);
         const toIdx = PROJECTS.indexOf(proj);
@@ -163,7 +166,10 @@ function wireDropZone(zone, areaId, afterProjId) {
     if (!draggedProjectId) return;
     const dragged = getProject(draggedProjectId);
     if (!dragged) return;
-    dragged.areaId = areaId;
+    if (dragged.areaId !== areaId) {
+      dragged.areaId = areaId;
+      DB.updateProject(dragged.id, { areaId });
+    }
     PROJECTS.splice(PROJECTS.indexOf(dragged), 1);
     if (afterProjId) {
       const anchor = PROJECTS.findIndex(p => p.id === afterProjId);
@@ -191,7 +197,9 @@ function activateView(viewName) {
   if (navEl) navEl.classList.add('active');
 
   const titles = { inbox:'Inbox', today:'Today', upcoming:'Upcoming', anytime:'Anytime', someday:'Someday', logbook:'Logbook', trash:'Trash' };
-  document.getElementById('titleText').textContent     = titles[viewName] || viewName;
+  const titleEl = document.getElementById('titleText');
+  titleEl.textContent = titles[viewName] || viewName;
+  titleEl.ondblclick  = null;
   document.getElementById('projSub').textContent       = '';
   document.getElementById('headerRing').style.display  = 'none';
   document.getElementById('headerRight').style.display = 'none';
@@ -213,7 +221,9 @@ function activateArea(areaId) {
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelectorAll('.proj-row').forEach(r => r.classList.remove('active'));
 
-  document.getElementById('titleText').textContent     = area.name;
+  const titleEl = document.getElementById('titleText');
+  titleEl.textContent = area.name;
+  titleEl.ondblclick  = () => startTitleEdit('area', areaId);
   document.getElementById('projSub').textContent       = `${PROJECTS.filter(p => p.areaId === areaId).length} projects`;
   document.getElementById('headerRing').style.display  = 'none';
   document.getElementById('quickAddWrap').style.display = 'none';
@@ -245,7 +255,9 @@ function activateProject(projectId) {
   const rowEl = document.getElementById('proj-' + projectId);
   if (rowEl) rowEl.classList.add('active');
 
-  document.getElementById('titleText').textContent     = proj.name;
+  const titleEl = document.getElementById('titleText');
+  titleEl.textContent = proj.name;
+  titleEl.ondblclick  = () => startTitleEdit('project', projectId);
   document.getElementById('projSub').textContent       = `${area.name} · ${done} of ${total} completed`;
   document.getElementById('headerRing').style.display  = 'block';
   updateHeaderRing(projectId);
@@ -1023,6 +1035,59 @@ function handlePhotoUpload(e) {
     DB.updateProfile({ photo: USER_PROFILE.photo });
   };
   reader.readAsDataURL(file);
+}
+
+// ─── Rename title inline (double-click on main header) ─────
+function startTitleEdit(type, id) {
+  const el  = document.getElementById('titleText');
+  const obj = type === 'project' ? getProject(id) : getArea(id);
+  if (!obj) return;
+
+  el.contentEditable = 'true';
+  el.style.minWidth  = '60px';
+  el.style.outline   = 'none';
+  el.focus();
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  let committed = false;
+
+  function commit() {
+    if (committed) return;
+    committed = true;
+    const newName = el.textContent.trim();
+    el.contentEditable = 'false';
+    el.style.minWidth  = '';
+    if (!newName) { el.textContent = obj.name; return; }
+    obj.name = newName;
+    if (type === 'project') {
+      DB.updateProject(id, { name: newName });
+    } else {
+      DB.updateArea(id, { name: newName });
+    }
+    renderSidebar();
+  }
+
+  function revert() {
+    if (committed) return;
+    committed = true;
+    el.contentEditable = 'false';
+    el.style.minWidth  = '';
+    el.textContent = obj.name;
+  }
+
+  el.addEventListener('keydown', function onKey(e) {
+    if (e.key === 'Enter')  { e.preventDefault(); commit(); el.removeEventListener('keydown', onKey); }
+    if (e.key === 'Escape') { revert(); el.removeEventListener('keydown', onKey); }
+    e.stopPropagation();
+  });
+  el.addEventListener('blur', function onBlur() {
+    commit();
+    el.removeEventListener('blur', onBlur);
+  });
 }
 
 // ═══════════════════════════════════════════════════════════
