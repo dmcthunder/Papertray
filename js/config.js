@@ -7,5 +7,5 @@
 // 4. Copy "anon public" key → SUPABASE_ANON_KEY
 // ════════════════════════════════════════════════════════════
 
-const SUPABASE_URL      = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_URL      = 'https://tfjmfqdgbenetlwagxaw.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGci...your full key here...';
