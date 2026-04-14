@@ -224,8 +224,9 @@
     if (!_sb) return;
     const uid = await getUserId(); if (!uid) return;
     const row = {};
-    if ('name'     in patch) row.name      = patch.name;
-    if ('isShared' in patch) row.is_shared = patch.isShared;
+    if ('name'          in patch) row.name          = patch.name;
+    if ('isShared'      in patch) row.is_shared      = patch.isShared;
+    if ('collaborators' in patch) row.collaborators  = patch.collaborators;
     await _sb.from('areas').update(row).eq('id', id).eq('user_id', uid);
   }
 
@@ -249,8 +250,9 @@
     if (!_sb) return;
     const uid = await getUserId(); if (!uid) return;
     const row = {};
-    if ('name'   in patch) row.name    = patch.name;
-    if ('areaId' in patch) row.area_id = patch.areaId;
+    if ('name'          in patch) row.name          = patch.name;
+    if ('areaId'        in patch) row.area_id        = patch.areaId;
+    if ('collaborators' in patch) row.collaborators  = patch.collaborators;
     await _sb.from('projects').update(row).eq('id', id).eq('user_id', uid);
   }
 

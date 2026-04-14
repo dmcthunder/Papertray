@@ -1034,6 +1034,34 @@ html, body {
 }
 .share-collab-role.owner { color: var(--blue); background: var(--blue-bg); }
 
+.btn-collab-remove {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); padding: 4px; border-radius: 6px;
+  display: flex; align-items: center; opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.share-collab-row:hover .btn-collab-remove { opacity: 1; }
+.btn-collab-remove:hover { color: var(--red); }
+
+/* Add team members list */
+.share-add-list { display: flex; flex-direction: column; gap: 6px; }
+.share-add-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.share-add-info { flex: 1; min-width: 0; }
+.share-add-name { font-size: 13px; font-weight: 500; }
+.share-add-role { font-size: 11px; color: var(--muted); }
+.btn-add-collab {
+  font-size: 12px; font-weight: 500;
+  padding: 4px 12px; border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg); color: var(--text);
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.13s, border-color 0.13s;
+}
+.btn-add-collab:hover { background: var(--hover); border-color: rgba(0,0,0,0.13); }
+.share-add-empty { font-size: 13px; color: var(--muted); padding: 4px 0; }
+
 /* ─── Toast ───────────────────────────────────────────────── */
 .toast {
   position: fixed;

@@ -1064,47 +1064,8 @@ function handleShare() {
   }
   document.getElementById('shareModalTitle').textContent = title;
 
-  // Collaborators list
-  const listEl = document.getElementById('shareCollabsList');
-  listEl.innerHTML = '';
-
-  let collabs = [];
-  if (_shareContext) {
-    const obj = _shareContext.type === 'project'
-      ? getProject(_shareContext.id)
-      : getArea(_shareContext.id);
-    if (obj && obj.collaborators && obj.collaborators.length) {
-      collabs = obj.collaborators.map(id => COLLABORATORS[id]).filter(Boolean);
-    }
-  }
-
-  // Always show the current user as owner
-  const ownerRow = document.createElement('div');
-  ownerRow.className = 'share-collab-row';
-  const initials = (USER_PROFILE.firstName[0] || '') + (USER_PROFILE.lastName[0] || '');
-  ownerRow.innerHTML = `
-    <div class="share-collab-av" style="background:var(--blue)">${initials.toUpperCase()}</div>
-    <div class="share-collab-info">
-      <div class="share-collab-name">${USER_PROFILE.firstName} ${USER_PROFILE.lastName}</div>
-      <div class="share-collab-email">${USER_PROFILE.email}</div>
-    </div>
-    <span class="share-collab-role owner">Owner</span>`;
-  listEl.appendChild(ownerRow);
-
-  collabs.forEach(c => {
-    const row = document.createElement('div');
-    row.className = 'share-collab-row';
-    row.innerHTML = `
-      <div class="share-collab-av" style="background:${c.color}">${c.initials}</div>
-      <div class="share-collab-info">
-        <div class="share-collab-name">${c.name}</div>
-        <div class="share-collab-email">${c.name.toLowerCase().replace(' ','.')}@team.com</div>
-      </div>
-      <span class="share-collab-role">Member</span>`;
-    listEl.appendChild(row);
-  });
-
-  document.getElementById('shareCollabsSection').style.display = collabs.length || true ? '' : 'none';
+  renderShareCollabs();
+  renderShareAddList();
 
   // Reset copy button & email input
   const copyBtn = document.getElementById('btnCopyLink');
@@ -1119,6 +1080,107 @@ function handleShare() {
 function closeShare() {
   document.getElementById('shareModal').style.display = 'none';
   _shareContext = null;
+}
+
+function _getShareObj() {
+  if (!_shareContext) return null;
+  return _shareContext.type === 'project'
+    ? getProject(_shareContext.id)
+    : getArea(_shareContext.id);
+}
+
+function renderShareCollabs() {
+  const listEl = document.getElementById('shareCollabsList');
+  listEl.innerHTML = '';
+  const obj = _getShareObj();
+  const currentIds = obj ? (obj.collaborators || []) : [];
+
+  // Owner row (always first)
+  const initials = ((USER_PROFILE.firstName||'')[0] + (USER_PROFILE.lastName||'')[0]).toUpperCase();
+  const ownerRow = document.createElement('div');
+  ownerRow.className = 'share-collab-row';
+  ownerRow.innerHTML = `
+    <div class="share-collab-av" style="background:var(--blue)">${initials}</div>
+    <div class="share-collab-info">
+      <div class="share-collab-name">${USER_PROFILE.firstName} ${USER_PROFILE.lastName}</div>
+      <div class="share-collab-email">${USER_PROFILE.email}</div>
+    </div>
+    <span class="share-collab-role owner">Owner</span>`;
+  listEl.appendChild(ownerRow);
+
+  // Member rows
+  currentIds.forEach(cid => {
+    const c = COLLABORATORS[cid];
+    if (!c) return;
+    const row = document.createElement('div');
+    row.className = 'share-collab-row';
+    row.innerHTML = `
+      <div class="share-collab-av" style="background:${c.color}">${c.initials}</div>
+      <div class="share-collab-info">
+        <div class="share-collab-name">${c.name}</div>
+        <div class="share-collab-email">${c.name.toLowerCase().replace(' ','.')}@team.com</div>
+      </div>
+      <span class="share-collab-role">Member</span>
+      <button class="btn-collab-remove" title="Remove" onclick="removeCollaborator('${cid}')">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <path d="M2 2l9 9M11 2l-9 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </button>`;
+    listEl.appendChild(row);
+  });
+}
+
+function renderShareAddList() {
+  const addEl = document.getElementById('shareAddList');
+  addEl.innerHTML = '';
+  const obj = _getShareObj();
+  const currentIds = new Set(obj ? (obj.collaborators || []) : []);
+  const available = Object.values(COLLABORATORS).filter(c => !currentIds.has(c.id));
+
+  if (!available.length) {
+    addEl.innerHTML = `<div class="share-add-empty">All team members already have access.</div>`;
+    return;
+  }
+
+  available.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'share-add-row';
+    row.innerHTML = `
+      <div class="share-collab-av" style="background:${c.color}">${c.initials}</div>
+      <div class="share-add-info">
+        <div class="share-add-name">${c.name}</div>
+        <div class="share-add-role">Team member</div>
+      </div>
+      <button class="btn-add-collab" onclick="addCollaborator('${c.id}')">Add</button>`;
+    addEl.appendChild(row);
+  });
+}
+
+function addCollaborator(collabId) {
+  const obj = _getShareObj();
+  if (!obj) return;
+  if (!obj.collaborators) obj.collaborators = [];
+  if (!obj.collaborators.includes(collabId)) {
+    obj.collaborators.push(collabId);
+    if (_shareContext.type === 'project') DB.updateProject(obj.id, { collaborators: obj.collaborators });
+    else DB.updateArea(obj.id, { collaborators: obj.collaborators });
+  }
+  renderShareCollabs();
+  renderShareAddList();
+  renderSidebar();
+  showToast(`${COLLABORATORS[collabId].name} added`);
+}
+
+function removeCollaborator(collabId) {
+  const obj = _getShareObj();
+  if (!obj || !obj.collaborators) return;
+  obj.collaborators = obj.collaborators.filter(id => id !== collabId);
+  if (_shareContext.type === 'project') DB.updateProject(obj.id, { collaborators: obj.collaborators });
+  else DB.updateArea(obj.id, { collaborators: obj.collaborators });
+  renderShareCollabs();
+  renderShareAddList();
+  renderSidebar();
+  showToast(`${COLLABORATORS[collabId].name} removed`);
 }
 
 function copyShareLink() {
